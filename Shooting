@@ -1,0 +1,118 @@
+using System.Collections;
+using UnityEngine;
+public class PlayerWeapon : MonoBehaviour
+{
+    #region
+    [SerializeField] private GameObject bulletPrefab;
+    [SerializeField] private Transform BulletSpawn;
+    [SerializeField] private float BulletSpeed = 100;
+    [SerializeField] private float BulletlifeTime = 3;
+    private bool Reloading = false, allowButtonHold, shooting, readyToShoot, OutofBullets = false;
+    [SerializeField] private float TimeBetweenShooting = 0.5f, spread = 1f, reloadTime = 2, TimeBetweenShots; //- multiple bullets between click
+    [SerializeField] private int magazineSize, BulletsPerTap, bulletsLeft, bulletsShot, AmountToTake = 27;
+    public Camera fpsCam;
+    public LayerMask WhatIsEnemy; // this will be for objects categorized as enemies so they'll take damage
+
+    AddAmmo AA;
+    #endregion
+    private void Awake()
+    {
+
+        bulletsLeft = AmountToTake; //start with "bulletsleft"  and amount to take is the max capacity of how many bullets u can have
+        magazineSize -= AmountToTake; //total bullets - the capacity that was taken;
+        readyToShoot = true;
+    }
+    void Update()
+    {
+        MyInput();
+    }
+#region
+    private void MyInput()
+    {
+        if (allowButtonHold) shooting = Input.GetKey(KeyCode.Mouse0);
+        else shooting = Input.GetKeyDown(KeyCode.Mouse0);
+
+        if (Input.GetKeyDown(KeyCode.R) && !Reloading && bulletsLeft != AmountToTake) Reload();
+
+        if (readyToShoot && shooting && !Reloading && bulletsLeft > 0)
+        {
+            bulletsShot = BulletsPerTap;
+            Fire();
+        }
+
+    }
+
+    private void Fire()
+    {
+        readyToShoot = false;
+
+        float x = Random.Range(spread, -spread);
+        float y = Random.Range(-spread, spread);
+
+        Vector3 direction = fpsCam.transform.forward + new Vector3(x, y, 0);
+
+        bulletsLeft--;
+        bulletsShot--;
+
+        Invoke("ReadyToShoot", TimeBetweenShooting);
+
+        if (bulletsShot > 0 && bulletsLeft > 0)
+            Invoke("Shoot", TimeBetweenShots);
+
+
+        GameObject bullet = Instantiate(bulletPrefab);
+        Physics.IgnoreCollision(bullet.GetComponent<Collider>(), BulletSpawn.parent.GetComponent<Collider>());
+        bullet.transform.position = BulletSpawn.position;
+
+        Vector3 rotation = bullet.transform.rotation.eulerAngles;
+        bullet.transform.rotation = Quaternion.Euler(rotation.x, transform.eulerAngles.y, rotation.z);
+        bullet.GetComponent<Rigidbody>().AddForce(BulletSpawn.forward * BulletSpeed, ForceMode.Impulse);
+
+        StartCoroutine(DestroyBulletAfterTime(bullet, BulletlifeTime));
+    }
+
+    private IEnumerator DestroyBulletAfterTime(GameObject Bullet, float time)
+    {
+        yield return new WaitForSeconds(time);
+        Destroy(Bullet);
+    }
+
+    private void Reload()
+    {
+        Reloading = true;
+        Invoke("ReloadFinished", reloadTime);
+    }
+
+    private void ReloadFinished()
+    { if(bulletsLeft < AmountToTake && OutofBullets == false)
+        {
+            // if bullets = 17 < 27, take 10 more from magazineSize and magazinesize = magazine size - amount that was taken
+            magazineSize = magazineSize - (AmountToTake - bulletsLeft); //80 - (27 - 17)
+            bulletsLeft += AmountToTake - bulletsLeft;//"17" = 17 + 27 - 17  
+            Reloading = false;
+        }
+     
+        if(magazineSize < 1)
+        {
+            OutofBullets = true;
+            Debug.Log("No ammo left");
+        }
+
+    }
+    private void ReadyToShoot()
+    {
+        readyToShoot = true;
+    }
+    private void OnTriggerEnter(Collider other)
+    {
+        if(other.gameObject.CompareTag("Ammo")) //if player gets in the trigger radius of an object with tag ammo then
+        {
+            if(Input.GetKeyDown(KeyCode.E)) //if player presses E
+            {
+                magazineSize += AA.Ammo; //magazine size = magazine size + ammo(50)
+                Destroy(other.gameObject); //destroys ammo
+            }
+        }
+    }
+    #endregion
+}
